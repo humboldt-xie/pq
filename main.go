@@ -18,6 +18,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+var ColumnNumbs = 50
+
 type Visitor struct {
 }
 
@@ -207,7 +209,7 @@ func (se *streamExec) init() {
 	se.output = make(chan map[string]interface{})
 	sctx := mock.NewContext()
 	createTable := "create table stdin ("
-	for i := 1; i < 10; i++ {
+	for i := 1; i < ColumnNumbs; i++ {
 		if i > 1 {
 			createTable += ","
 		}
@@ -259,6 +261,7 @@ func (se *streamExec) initWhere(stmt *ast.SelectStmt) expression.Expression {
 func main() {
 	sql := flag.String("e", "", "sql")
 	where := flag.String("w", "", "where ")
+	flag.IntVar(&ColumnNumbs, "c", 50, "column numbs")
 	flag.Parse()
 
 	if *where != "" {
@@ -271,7 +274,7 @@ func main() {
 	go se.Run() //.Run(stream(file), stream(os.Stdout))
 
 	for v := range se.Read() {
-		for i := 0; i < 10; i++ {
+		for i := 0; i < ColumnNumbs; i++ {
 			cn := fmt.Sprintf("c%d", i+1)
 			if _, ok := v[cn]; !ok {
 				continue
