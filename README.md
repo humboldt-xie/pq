@@ -29,7 +29,7 @@ ls -l | pq  -w "c5>1024" # c5 代表第五列
 也可以写完整的sql语句:
 
 ```
-ls -l |pq -e "select * from stdin where c5>1024"
+ls -l |pq -e "select * from stdin where c5>1024 limit 1,5"
 
 ```
 
