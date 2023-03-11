@@ -41,10 +41,11 @@ ls -l |./pq -e ' select * from (select * from stdin)'
 
 ## 数据源
 
-| 是否支持 | 数据源 | 描述 |
-|--| -- | -- |
-|是|stdin|  标准输入 |
-||file|  文件输入 |
-||kafka|  kafka队列输入 |
-||mysql|  从mysql输入 |
+- [x] stdin   标准输入 
+    - [x] 按列分割
+    - [ ] json
+    - [ ] 自定义分隔符
+- [ ] file   文件输入 
+- [ ] kafka   kafka队列输入 
+- [ ] mysql   从mysql输入 
 
