@@ -1,11 +1,9 @@
 package main
 
 import (
-	"bufio"
 	"flag"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/pingcap/tidb/expression"
 	"github.com/pingcap/tidb/parser"
@@ -143,10 +141,10 @@ func (se *streamExec) doWhere(v map[string]interface{}) bool {
 	return false
 
 }
-func (se *streamExec) getDataSourceByResultSet(source ast.ResultSetNode) IDatasource {
+func (se *streamExec) getDatasourceByResultSet(source ast.ResultSetNode) IDatasource {
 	switch src := source.(type) {
 	case *ast.TableSource:
-		return se.getDataSourceByResultSet(src.Source) //Datasources.Get(from.TableRefs.Left.(*ast.TableSource).Source.(*ast.TableName).Name.String())
+		return se.getDatasourceByResultSet(src.Source) //Datasources.Get(from.TableRefs.Left.(*ast.TableSource).Source.(*ast.TableName).Name.String())
 	case *ast.TableName:
 		return Datasources.Get(src.Name.String())
 	case *ast.SelectStmt:
@@ -161,9 +159,9 @@ func (se *streamExec) getDataSourceByResultSet(source ast.ResultSetNode) IDataso
 }
 
 // ast.ResultSetNode SelectStmt, SubqueryExpr, TableSource, TableName, Join and SetOprStmt.
-func (se *streamExec) getDataSource(from *ast.TableRefsClause) IDatasource {
+func (se *streamExec) getDatasource(from *ast.TableRefsClause) IDatasource {
 
-	return se.getDataSourceByResultSet(from.TableRefs.Left)
+	return se.getDatasourceByResultSet(from.TableRefs.Left)
 }
 
 func (se *streamExec) doSelectStmt(stmt *ast.SelectStmt) {
@@ -183,7 +181,12 @@ func (se *streamExec) doSelectStmt(stmt *ast.SelectStmt) {
 		}
 		//stmt.Limit.Count.(ast.ValueExpr).GetValue().(uint64)
 	}
-	ds := se.getDataSource(stmt.From)
+
+	ds := se.getDatasource(stmt.From)
+	if ds == nil {
+		se.Errors = append(se.Errors, fmt.Errorf("not found datasource %v", stmt.From))
+		return
+	}
 
 	for v := range ds.Read() {
 		if limit != 0 && count-offset >= limit {
@@ -253,59 +256,15 @@ func (se *streamExec) initWhere(stmt *ast.SelectStmt) expression.Expression {
 	return expr
 }
 
-type IDatasource interface {
-	Read() stream
-}
-
-type datasourceFactory struct {
-}
-
-func (d *datasourceFactory) Create(name string, argv []string) IDatasource {
-	return &Stdin{}
-}
-
-func (d *datasourceFactory) Get(name string) IDatasource {
-	if name != "stdin" {
-		panic("not support table " + name)
-	}
-	return &Stdin{}
-}
-
-var Datasources = datasourceFactory{}
-
-type Stdin struct {
-}
-
-func (s *Stdin) Read() stream {
-	input := make(stream, 10)
-	scan := bufio.NewScanner(os.Stdin)
-
-	go func() {
-		for scan.Scan() {
-			val := strings.Fields(scan.Text())
-			newval := val
-			logrus.Debugf("val: %v %#v\n", scan.Text(), newval)
-			row := map[string]interface{}{}
-			for i, v := range newval {
-				row[fmt.Sprintf("c%d", i+1)] = v
-			}
-			input <- row
-		}
-		close(input)
-	}()
-	return input
-}
-
 func main() {
 	sql := flag.String("e", "", "sql")
 	where := flag.String("w", "", "where ")
-	datasourceName := flag.String("ds", "stdin", "datasource")
 	flag.Parse()
 
 	if *where != "" {
-		*sql = fmt.Sprintf("select * from %s where %s", *datasourceName, *where)
+		*sql = fmt.Sprintf("select * from %s where %s", "stdin", *where)
 	}
-	Datasources.Create(*datasourceName, os.Args)
+	Datasources.Register("stdin", &StdinDatasource{})
 
 	//output := make(stream, 10)
 	se := NewStreamExec(*sql)

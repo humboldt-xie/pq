@@ -2,14 +2,15 @@ package main
 
 import (
 	"fmt"
+	"net/url"
 	"testing"
 
 	_ "github.com/pingcap/tidb/planner/core"
 	_ "github.com/pingcap/tidb/types/parser_driver"
 )
 
-func newFunction() {
-	se := NewStreamExec(`SELECT  c1, c2 FROM t where c1>10 and c1 <20 group by c1`)
+func Test_simpleSelect(t *testing.T) {
+	se := NewStreamExec(`SELECT  c1, c2 FROM t where c1>10 and c1 <20 `)
 	if se.HasError() {
 		fmt.Printf("parse error: %v\n", se.Errors)
 		return
@@ -24,32 +25,40 @@ func newFunction() {
 		}
 		close(input)
 	}()
-	output := make(chan map[string]interface{})
+	Datasources.Register("t", &ChanDatasource{Output: input})
+	//output := make(chan map[string]interface{})
 
-	go se.Run(input, output)
+	go se.Run()
 
-	for v := range output {
-		fmt.Printf("res:%v\n", v)
+	count := 0
+	for v := range se.Read() {
+		count++
+		t.Logf("res:%v\n", v)
 	}
-}
-
-func Test_newFunction(t *testing.T) {
-	newFunction()
-	t.Fatalf("not implemented")
-	tests := []struct {
-		name string
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			newFunction()
-		})
+	t.Logf("%v %d \n", se.Errors, count)
+	if count != 9 {
+		t.Fatalf("count error:%d", count)
 	}
 }
 
 func Test_DatasourceUrl(t *testing.T) {
 	tests := []struct {
-		name string
-	}{}
+		url string
+		t   string
+	}{
+		{"file:///tmp/test.txt", "file"},
+		{"stdin://", "stdin"},
+	}
+	for _, v := range tests {
+		u, err := url.Parse(v.url)
+		if err != nil {
+			t.Errorf("parse url error:%v", err)
+			continue
+		}
+		if u.Scheme != v.t {
+			t.Errorf("parse url error:%v", err)
+			continue
+		}
+
+	}
 }
